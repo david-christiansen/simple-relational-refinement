@@ -1,3 +1,13 @@
+
+*#
+
+
+parser.ml*
+
+dist
+dist-newstyle/
+Setup.hs
+
 *.annot
 *.cmo
 *.cma
@@ -21,3 +31,5 @@ setup.log
 
 # Merlin configuring file for Vim and Emacs
 .merlin
+a.out
+
