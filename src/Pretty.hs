@@ -48,7 +48,28 @@ instance Pretty Pred where
   pretty _ = error "not implemented"
 
 instance Pretty Synth where
-  pretty _ = "synth"
+  pretty (Annot e t) = group $ vsep [pretty e <+> ":", pretty t]
+  pretty (App fun arg) = parens $ align $ group $ vsep [pretty fun, pretty arg]
+  pretty (Var x) = pretty x
+  pretty (IntLit n) = pretty n
+  pretty (BoolLit b) = pretty b
+  pretty (Bin op a b) = parens $ align $ group $
+                        vsep [pretty a <+> pretty op, pretty b]
+  pretty UnitCon = "unit"
 
 instance Pretty Check where
-  pretty _ = "chk"
+  pretty (Synth s) = pretty s
+  pretty (Lam x e) = hang 2 $ group $ vsep ["λ" <> pretty x <> ".", pretty e]
+  pretty Nil = "[]"
+  pretty (Cons x xs) =
+    hang 2 $ group $ vsep [pretty x <+> "::", pretty xs]
+  pretty (RecList l b s) =
+    "recList(" <> (align $ group $ vsep [ pretty l <> ";"
+                                        , pretty b <> ";"
+                                        , pretty s
+                                        , ")"])
+  pretty (If c t f) =
+    "if(" <> (align $ group $ vsep [ pretty c <> ";"
+                                   , pretty t <> ";"
+                                   , pretty f <> ";"
+                                   ])
