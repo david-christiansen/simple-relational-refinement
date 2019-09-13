@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 module Main where
@@ -10,15 +11,22 @@ import TC
 
 import Control.Lens
 import Control.Monad.IO.Class
+import Data.Foldable
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Prettyprint.Doc
 import System.IO
 import System.Console.Haskeline
+import System.Environment
 import Text.Megaparsec
 
 main :: IO ()
-main = runInputT defaultSettings repl
+main =
+  getArgs >>=
+  \case
+    [] -> runInputT defaultSettings repl
+    [f] -> putStrLn $ "Processing " ++ f
+    other -> printUsage
   where
     repl =
       do l <- getInputLine "> "
@@ -87,3 +95,13 @@ findLine n input = find' n (T.lines input)
       | n <= 1 = Just l
       | otherwise = find' (n - 1) ls
     find' _ [] = Nothing
+
+
+printUsage :: IO ()
+printUsage =
+  traverse_ putStrLn
+    [ "Usage:"
+    , "No arguments means REPL"
+    , "One argument means process a file"
+    , "More arguments means see this message"
+    ]
