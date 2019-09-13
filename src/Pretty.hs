@@ -74,3 +74,25 @@ instance Pretty Check where
                                    , pretty f
                                    , ")"
                                    ])
+
+instance Pretty TypeError where
+  pretty (GenericErr t) = pretty t
+  pretty (UnknownVar x) = "Unknown var:" <+> pretty x
+  pretty (NotAFunctionType t) =
+    hang 2 $ group $ vsep [ "Not a function type:"
+                          , pretty t
+                          ]
+  pretty (NotAListType t) =
+    hang 2 $ group $ vsep [ "Not a list type:"
+                          , pretty t
+                          ]
+  pretty (NotSubtype t1 t2) =
+    hang 2 $ group $ vsep [ "Used a"
+                          , pretty t1
+                          , "where a"
+                          , pretty t2
+                          , "was expected."
+                          ]
+  pretty (BaseMismatch t1 t2) =
+    pretty t1 <+> "≠" <+> pretty t2
+  pretty Unsat = "Unsat"
