@@ -18,6 +18,7 @@ extra-source-files:  CHANGELOG.md, README.md
 
 common deps
   build-depends:       base ^>=4.12.0.0
+                     , haskeline ^>=0.7.5
                      , lens
                      , megaparsec
                      , parser-combinators ^>= 1.2

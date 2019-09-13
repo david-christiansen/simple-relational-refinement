@@ -35,7 +35,7 @@ instance Pretty Ty where
   pretty (Arrow (view value -> t1@(Arrow _ _)) t2) =
     group $ vsep [parens (pretty t1), "→", pretty t2]
   pretty (Arrow t1 t2) =
-    group $ vsep [parens (pretty t1), "→", pretty t2]
+    group $ vsep [pretty t1, "→", pretty t2]
   pretty (RefTy (view value -> NoName) (view value -> bt) _) = pretty bt
   pretty (RefTy x t (view value -> Yep)) =
     braces $ pretty x <+> ":" <+> align (pretty t)
@@ -71,5 +71,6 @@ instance Pretty Check where
   pretty (If c t f) =
     "if(" <> (align $ group $ vsep [ pretty c <> ";"
                                    , pretty t <> ";"
-                                   , pretty f <> ";"
+                                   , pretty f
+                                   , ")"
                                    ])
