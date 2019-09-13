@@ -39,12 +39,12 @@ data Located a = Located
 location :: Simple Lens (Located a) Span
 location = lens _location (\l s -> l {_location = s})
 
-value :: Simple Lens (Located a) a
+value :: Lens (Located a) (Located b) a b
 value = lens _value (\l v -> l {_value = v})
 
 data Name = Name String
           | NoName
-  deriving Show
+  deriving (Eq, Ord, Show)
 
 data BaseType
   = Int
@@ -64,6 +64,9 @@ data Ty
   = Arrow (Located Ty) (Located Ty)
   | RefTy (Located Name) (Located BaseType) (Located Pred)
   deriving Show
+
+liftBase :: Located BaseType -> Located Ty
+liftBase τ = set value (RefTy (set value NoName τ) τ (set value Yep τ)) τ
 
 data Synth
   = Annot (Located Check) (Located Ty)
