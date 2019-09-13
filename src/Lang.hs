@@ -2,6 +2,7 @@
 module Lang where
 
 import Control.Lens
+import Data.Text (Text)
 
 data Pos = Pos
   { _line :: Int
@@ -51,7 +52,7 @@ data BaseType
   | Bool
   | Unit
   | List (Located BaseType)
-  deriving Show
+  deriving (Show)
 
 
 newtype RelSort = RelSort [Located BaseType]
@@ -100,6 +101,7 @@ data Pred
   | SubsetEq Rel Rel
   | And Pred Pred
   | Or Pred Pred
+  | Not Pred
   | Yep | Nope
   deriving Show
 
@@ -119,3 +121,13 @@ declarations = lens _declarations (\p ds -> p {_declarations = ds})
 
 body :: Simple Lens Prog (Located Synth)
 body = lens _body (\p b -> p {_body = b})
+
+data TypeError
+  = GenericErr Text
+  | UnknownVar Name
+  | NotAFunctionType Ty
+  | NotAListType Ty
+  | NotSubtype Ty Ty
+  | BaseMismatch BaseType BaseType
+  | Unsat -- TODO insert reason why
+  deriving Show
