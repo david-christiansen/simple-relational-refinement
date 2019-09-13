@@ -157,7 +157,7 @@ synth :: LParser Synth
 synth =
   expr >>= getSynth
 
-getSynth (EChk c) = fail $ "Missing type annotation:" ++ show c
+getSynth (EChk _) = fail $ "Missing type annotation"
 getSynth (ESyn s) = pure s
 
 
@@ -167,12 +167,15 @@ atomic
   <|> ESyn <$> (fmap IntLit <$> int)
   <|> ESyn <$> (fmap BoolLit <$> bool)
   <|> delim '(' *> expr <* delim ')'
+  <|> EChk <$> (combine2 (const (const Nil)) <$> delim '[' <*> delim ']')
 
 term :: Parser Expr
 term =
-  do fun <- atomic >>= getSynth
+  do fun <- atomic
      args <- many (atomic >>= getCheck)
-     combine fun args
+     case args of
+       [] -> return fun
+       _  -> getSynth fun >>= flip combine args
   where
     combine :: Located Synth -> [Located Check] -> Parser Expr
     combine fun [] = pure (ESyn fun)

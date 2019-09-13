@@ -31,7 +31,7 @@ main = runInputT defaultSettings repl
                   Left err -> outputStrLn (errorBundlePretty err) *> repl
                   Right (EChk e) ->
                     do outputStrLn "Got a checkable expression with no type:"
-                       outputStrLn (show (pretty e))
+                       outputStrLn (T.unpack (highlightSpan line (view location e)))
                        repl
                   Right (ESyn e) ->
                     do outputStrLn "Parser output for synth:"
