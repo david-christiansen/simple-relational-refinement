@@ -173,7 +173,8 @@ atomic
   <|> delim '(' *> expr <* delim ')'
   <|> EChk <$> (combine3 (const Lam) <$> (kw "fun" <|> kw "λ") <*> name <*> (delim '.' *> check))
   <|> EChk <$> (combine2 (const (const Nil)) <$> delim '[' <*> delim ']')
-  <|>  ESyn <$> (fmap Var <$> name)
+  <|> ESyn <$> (fmap Var <$> name)
+
 term :: Parser Expr
 term =
   do fun <- atomic
