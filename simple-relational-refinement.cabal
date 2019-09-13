@@ -16,26 +16,31 @@ maintainer:          dtc@galois.com
 -- category:
 extra-source-files:  CHANGELOG.md, README.md
 
-library
-  exposed-modules:     Lang
-                     , Parser
-  -- other-modules:
-  -- other-extensions:
+common deps
   build-depends:       base ^>=4.12.0.0
                      , lens
                      , megaparsec
+                     , parser-combinators ^>= 1.2
+                     , prettyprinter ^>= 1.3
                      , text
+
+library
+  import:              deps
+  exposed-modules:     Lang
+                     , Parser
+                     , Pretty
+  -- other-modules:
+  -- other-extensions:
+
+  build-depends:
   hs-source-dirs:      src
   default-language:    Haskell2010
 
 executable simple-relational-refinement
+  import:              deps
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
-  build-depends:       base ^>=4.12.0.0
-                     , lens
-                     , megaparsec
-                     , text
-                     , simple-relational-refinement
+  build-depends:       simple-relational-refinement
   hs-source-dirs:      src
   default-language:    Haskell2010

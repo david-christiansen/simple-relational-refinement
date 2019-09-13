@@ -1,17 +1,21 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GADTSyntax #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Parser where
 
 import Lang
 
-import Control.Lens hiding (List)
+import Control.Lens hiding (List, op)
 import Data.Char
 import Data.Functor
 import Data.Function
 import Data.Text (Text)
 import Data.Void
 
+import Control.Monad.Combinators.Expr
 import Text.Megaparsec as MP
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -40,6 +44,11 @@ located p =
 kw :: Text -> Parser (Located ())
 kw k =
   lexeme (string k <* notFollowedBy alphaNumChar) <&>
+  fmap (const ())
+
+op :: Text -> Parser (Located ())
+op o =
+  lexeme (string o <* notFollowedBy (oneOf ("*+-/" :: String))) <&>
   fmap (const ())
 
 name :: Parser (Located Name)
@@ -81,24 +90,129 @@ decl = located $
   <|> kw "define" *>
       (Def <$> name <* delim '=' <*> synth)
 
-check :: LParser Check
-check = _
+data Expr :: * where
+  EChk :: Located Check -> Expr
+  ESyn :: Located Synth -> Expr
+  deriving Show
+
+baseTy :: LParser BaseType
+baseTy = aBaseTy <|> aList
+  where
+    aBaseTy
+      =  (kw "Int" <&> fmap (const Int))
+     <|> (kw "Bool" <&> fmap (const Bool))
+     <|> (kw "Unit" <&> fmap (const Unit))
+     <|> delim '(' *> baseTy <* delim ')'
+    aList
+      = combine2 (\ _ t -> List t) <$> kw "List" <*> aBaseTy
+
 
 ty :: LParser Ty
-ty = _
+ty =
+  do arg <- aType
+     (((op "->" <|> op "→") *> ty) >>=
+      pure . combine2 Arrow arg) <|> pure arg
+
+aType :: LParser Ty
+aType
+   =  delim '(' *> ty <* delim ')'
+  <|> refinement
+  <|> promoteBase <$> baseTy
+  where
+    promoteBase bt@(Located l _) =
+      Located l (RefTy (Located l NoName) bt (Located l Yep))
+
+
+refinement :: LParser Ty
+refinement =
+  do Located l1 _ <- delim '{'
+     x <- name
+     delim ':'
+     t@(Located tl _) <- baseTy
+     φ <- optional (delim '|' *> predicate) >>=
+          \case
+            Nothing -> pure (Located tl Yep)
+            Just φ -> pure φ
+     Located l2 _ <- delim '}'
+     pure (Located (spanning l1 l2) (RefTy x t φ))
+
+predicate :: LParser Pred
+predicate = fmap (const Yep) <$> kw "Yep" -- TODO more
 
 combine2 :: (Located a -> Located b -> c) -> Located a -> Located b -> Located c
 combine2 f x@(Located l1 _) y@(Located l2 _) =
   Located (spanning l1 l2) (f x y)
 
-synth :: Parser (Located Synth)
-synth
-   =  combine2 Annot <$> check <* delim ':' <*> ty
-  <|> combine2 App <$> synth <*> check
-  <|> fmap Var <$> name
-  <|> fmap IntLit <$> int
-  <|> fmap BoolLit <$> bool
-  
+check :: LParser Check
+check = expr >>= getCheck
+
+getCheck :: Expr -> LParser Check
+getCheck (EChk c) =
+  pure c
+getCheck (ESyn s@(Located l _)) =
+  pure (Located l (Synth s))
+
+
+synth :: LParser Synth
+synth =
+  expr >>= getSynth
+
+getSynth (EChk c) = fail $ "Missing type annotation:" ++ show c
+getSynth (ESyn s) = pure s
+
+
+atomic :: Parser Expr
+atomic
+   =  ESyn <$> (fmap Var <$> name)
+  <|> ESyn <$> (fmap IntLit <$> int)
+  <|> ESyn <$> (fmap BoolLit <$> bool)
+  <|> delim '(' *> expr <* delim ')'
+
+term :: Parser Expr
+term =
+  do fun <- atomic >>= getSynth
+     args <- many (atomic >>= getCheck)
+     combine fun args
+  where
+    combine :: Located Synth -> [Located Check] -> Parser Expr
+    combine fun [] = pure (ESyn fun)
+    combine fun (a:as) =
+      combine (combine2 App fun a) as
+
+
+
+factor :: Parser Expr
+factor =
+  term >>=
+  \e1 ->
+    (op "*" *> expr >>= mkBin Times e1) <|>
+    pure e1
+
+
+arith :: Parser Expr
+arith =
+  factor >>=
+  \e1 ->
+    (op "+" *> expr >>= mkBin Plus e1) <|>
+    (op "-" *> expr >>= mkBin Minus e1) <|>
+    pure e1
+
+expr :: Parser Expr
+expr =
+  arith >>=
+  \e ->
+    (op ":" *>
+     getCheck e >>= \ c ->
+        ty >>=
+        pure . ESyn . combine2 Annot c) <|> return e
+
+
+
+mkBin :: BinOp -> Expr -> Expr -> Parser Expr
+mkBin bin e1 e2 =
+  ESyn <$> (combine2 (Bin bin) <$>
+            getCheck e1 <*>
+            getCheck e2)
 
 
 prog :: Parser Prog

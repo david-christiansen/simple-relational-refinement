@@ -42,7 +42,8 @@ location = lens _location (\l s -> l {_location = s})
 value :: Simple Lens (Located a) a
 value = lens _value (\l v -> l {_value = v})
 
-newtype Name = Name String
+data Name = Name String
+          | NoName
   deriving Show
 
 data BaseType
