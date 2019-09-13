@@ -143,6 +143,11 @@ combine2 :: (Located a -> Located b -> c) -> Located a -> Located b -> Located c
 combine2 f x@(Located l1 _) y@(Located l2 _) =
   Located (spanning l1 l2) (f x y)
 
+
+combine3 :: (Located a -> Located b -> Located c -> d) -> Located a -> Located b -> Located c -> Located d
+combine3 f x@(Located l1 _) y z@(Located l2 _)=
+  Located (spanning l1 l2) (f x y z)
+
 check :: LParser Check
 check = expr >>= getCheck
 
@@ -163,12 +168,12 @@ getSynth (ESyn s) = pure s
 
 atomic :: Parser Expr
 atomic
-   =  ESyn <$> (fmap Var <$> name)
-  <|> ESyn <$> (fmap IntLit <$> int)
+   =  ESyn <$> (fmap IntLit <$> int)
   <|> ESyn <$> (fmap BoolLit <$> bool)
   <|> delim '(' *> expr <* delim ')'
+  <|> EChk <$> (combine3 (const Lam) <$> (kw "fun" <|> kw "λ") <*> name <*> (delim '.' *> check))
   <|> EChk <$> (combine2 (const (const Nil)) <$> delim '[' <*> delim ']')
-
+  <|>  ESyn <$> (fmap Var <$> name)
 term :: Parser Expr
 term =
   do fun <- atomic
@@ -182,15 +187,12 @@ term =
     combine fun (a:as) =
       combine (combine2 App fun a) as
 
-
-
 factor :: Parser Expr
 factor =
   term >>=
   \e1 ->
     (op "*" *> expr >>= mkBin Times e1) <|>
     pure e1
-
 
 arith :: Parser Expr
 arith =
