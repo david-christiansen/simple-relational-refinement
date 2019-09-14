@@ -14,10 +14,12 @@ import Control.Monad.IO.Class
 import Data.Foldable
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import Data.Text.Prettyprint.Doc
 import System.IO
 import System.Console.Haskeline
 import System.Environment
+import System.Exit
 import Text.Megaparsec
 
 main :: IO ()
@@ -25,7 +27,9 @@ main =
   getArgs >>=
   \case
     [] -> runInputT defaultSettings repl
-    [f] -> putStrLn $ "Processing " ++ f
+    [f] ->
+      do putStrLn $ "Processing " ++ f
+         processFile f
     other -> printUsage
   where
     repl =
@@ -53,6 +57,32 @@ main =
                          Right t ->
                            outputStrLn (show (pretty t))
                        repl
+
+processFile :: FilePath -> IO ()
+processFile f =
+  do contents <- T.readFile f
+     let parseRes = parse prog f contents
+     case parseRes of
+       Left err ->
+          putStrLn (errorBundlePretty err)
+       Right program ->
+         case (view declarations program) of
+           (_:_) ->
+             do putStrLn "Declarations don't work yet!"
+                exitFailure
+           [] ->
+             do let e = view body program
+                putStrLn "Parser put for body:"
+                putStrLn (show (pretty e))
+                putStrLn "Type checking result:"
+                t <- liftIO $ tc (synth e) (emptyContext (view location e))
+                case t of
+                  Left err ->
+                    do putStrLn (show (pretty (view value err)))
+                       putStrLn (T.unpack (highlightSpan contents (view location err)))
+                  Right t ->
+                    putStrLn (show (pretty t))
+
 
 
 
