@@ -75,6 +75,75 @@ instance Pretty Check where
                                    , ")"
                                    ])
 
+instance Pretty RelSort where
+  pretty (RelSort bts) =
+    "⟨" <> (align $ group $
+            vsep $ commatize (map pretty bts)) <> "⟩"
+    where
+      commatize [] = []
+      commatize [x] = [x]
+      commatize (x:y:xs) = x <> "," : commatize (y : xs)
+
+instance Pretty RelDef where
+  pretty (ListRel base (x, xs, step)) =
+    vsep [ "[]" <+> "↦" <+> align (pretty base) <> ";"
+         , "(" <> pretty x <+> "::" <+> pretty xs <> ")" <+>
+           "↦" <+> align (pretty step) <> ";"
+         ]
+  pretty (BoolRel t f) =
+    vsep [ "true"  <+> "↦" <+> align (pretty t) <> ";"
+         , "false" <+> "↦" <+> align (pretty f) <> ";"
+         ]
+  pretty (OtherRel x r) =
+    pretty x <+> "↦" <+> align (pretty r)
+
+instance Pretty Rel where
+  pretty (RApp r ind c) =
+    pretty r <>
+    maybe mempty (const "*") ind <>
+    "(" <> pretty c <> ")"
+  pretty (Prod r1 r2) =
+    "(" <> align (vsep [pretty r1 <+> "×", pretty r2]) <> ")"
+  pretty (Union r1 r2) =
+    "(" <> align (vsep [pretty r1 <+> "∪", pretty r2]) <> ")"
+  pretty (LitRel tuples) =
+    "{" <> align (group (vsep (commatize (map tuplize tuples)))) <> "}"
+    where
+      commatize [] = []
+      commatize [x] = [x]
+      commatize (x:y:xs) = x <> "," : commatize (y : xs)
+      tuplize xs =
+        "⟨" <> align (group (vsep (commatize (map pretty xs)))) <> "⟩"
+
+
+instance Pretty Decl where
+  pretty (Def x s) =
+    hang 2 $ group $
+    vsep [ "define" <+> pretty x <+> "="
+         , pretty s <> ";"
+         ]
+  pretty (RelDec x t θ def) =
+    hang 2 $ group $
+    vsep [ hsep [ "relation"
+                , pretty x
+                , ":"
+                , align $ group $
+                  vsep [ pretty t
+                       , ":→"
+                       , pretty θ
+                       ]
+                , ":="
+                , "{"
+                ]
+           , pretty def
+           , "};"
+           ]
+
+
+instance Pretty Prog where
+  pretty (Prog decls syn) =
+    vsep (map pretty decls ++ [pretty syn])
+
 instance Pretty TypeError where
   pretty (GenericErr t) = pretty t
   pretty (UnknownVar x) = "Unknown var:" <+> pretty x

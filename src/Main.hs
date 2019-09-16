@@ -61,27 +61,21 @@ main =
 processFile :: FilePath -> IO ()
 processFile f =
   do contents <- T.readFile f
-     let parseRes = parse prog f contents
+     let parseRes = parse (Parser.located prog) f contents
      case parseRes of
        Left err ->
           putStrLn (errorBundlePretty err)
-       Right program ->
-         case (view declarations program) of
-           (_:_) ->
-             do putStrLn "Declarations don't work yet!"
-                exitFailure
-           [] ->
-             do let e = view body program
-                putStrLn "Parser put for body:"
-                putStrLn (show (pretty e))
-                putStrLn "Type checking result:"
-                t <- liftIO $ tc (synth e) (emptyContext (view location e))
-                case t of
-                  Left err ->
-                    do putStrLn (show (pretty (view value err)))
-                       putStrLn (T.unpack (highlightSpan contents (view location err)))
-                  Right t ->
-                    putStrLn (show (pretty t))
+       Right (Located l prog) ->
+         do putStrLn "Parser output for body:"
+            putStrLn (show (pretty prog))
+            t <- liftIO $ tc (checkProgram prog) (emptyContext l)
+            putStrLn "Type checking result:"
+            case t of
+              Left err ->
+                do putStrLn (show (pretty (view value err)))
+                   putStrLn (T.unpack (highlightSpan contents (view location err)))
+              Right t ->
+                putStrLn (show (pretty t))
 
 
 

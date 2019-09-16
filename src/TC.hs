@@ -56,9 +56,13 @@ withExtendedContext :: Name -> Ty -> TC a -> TC a
 withExtendedContext x t act =
   TC (local (over varTypes (Map.insert x t)) (runTC act))
 
+withLocation :: Span -> TC a -> TC a
+withLocation l = TC . local (set currentLocation l) . runTC
+
 located :: Located a -> (a -> TC b) -> TC b
 located v f =
-  TC (local (set currentLocation (view location v)) (runTC $ f (view value v)))
+  withLocation (view location v) (f (view value v))
+
 
 lookupVar :: Located Name -> TC Ty
 lookupVar x =
@@ -204,3 +208,19 @@ here x =
 ty :: BaseType -> TC Ty
 ty bt =
   view value . liftBase <$> here bt
+
+checkProgram :: Prog -> TC Ty
+checkProgram prog =
+  withDeclContext (view declarations prog) (synth (view body prog))
+
+withDeclContext :: [Located Decl] -> TC a -> TC a
+withDeclContext [] act = act
+withDeclContext (d:ds) act =
+  withLocation (view location d) $
+  case d of
+    (view value -> Def x s) ->
+      do ty <- synth s
+         withExtendedContext (view value x) ty $
+           withDeclContext ds act
+    (Located l (RelDec _ _ _ _)) ->
+      failure $ GenericErr "Relation declarations not yet supported"

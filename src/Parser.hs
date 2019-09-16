@@ -83,10 +83,75 @@ relSort =
      Located l2 _ <- delim '⟩'
      return (Located (spanning l1 l2) res)
 
+mapsto = op "|->" <|> op "↦"
+
+relDef :: BaseType -> Parser RelDef
+relDef (List _) =
+  ListRel <$> (delim '[' *> delim ']' *> mapsto *> relation <* delim ';')
+          <*> (triple <$> (delim '(' *> name)
+                      <*> (op "::" *> name <* delim ')' <* mapsto)
+                      <*> relation <* delim ';')
+  where triple x y z = (x, y, z)
+relDef Bool = BoolRel <$> trueCase <*> falseCase
+  where
+    boolCase b = kw b *> mapsto *> relation <* delim ';'
+    trueCase = boolCase "true"
+    falseCase = boolCase "false"
+relDef _ =
+  OtherRel <$> name <*> (mapsto *> relation)
+
+braced :: Parser a -> Parser (Located a)
+braced p =
+  combine3 (\_ x _ -> view value x) <$>
+  delim '{' <*>
+  located p <*>
+  delim '}'
+
+atomicRel :: LParser Rel
+atomicRel
+   =  fmap LitRel <$> literalRel
+  <|> combine3 (\x y z -> RApp x y z) <$>
+      name <*>
+      optional (fmap (set value Star) (delim '*')) <*>
+      (delim '(' *> check <* delim ')')
+
+  where
+    literalRel :: LParser [[Located Synth]]
+    literalRel = braced $ sepBy tuple (delim ',')
+    tuple :: Parser [Located Synth]
+    tuple = delim '⟨' *> sepBy1 synth (delim ',') <* delim '⟩'
+
+relation1 :: LParser Rel
+relation1 =
+  do r <- atomicRel
+     (do delim '×'
+         r' <- relation1
+         return (combine2 mkProd r r')) <|> return r
+  where
+    mkProd (Located _ r1) (Located _ r2) = Prod r1 r2
+
+relation :: LParser Rel
+relation =
+  do r <- relation1
+     (do delim '∪'
+         r' <- relation
+         return (combine2 mkUnion r r')) <|> return r
+  where
+    mkUnion (Located _ r1) (Located _ r2) = Union r1 r2
+
 decl :: Parser (Located Decl)
 decl = located $
       kw "relation" *>
-      (RelDec <$> name <*> baseType <*> relSort)
+      (do r <- name
+          delim ':'
+          t <- baseType
+          (op ":->" <|> op ":→")
+          θ <- relSort
+          op ":="
+          Located l1 _ <- delim '{'
+          relBody <- relDef (view value t)
+          Located l2 _ <- delim '}'
+          return $ RelDec r t θ (Located (spanning l1 l2) relBody))
   <|> kw "define" *>
       (Def <$> name <* delim '=' <*> synth)
 
@@ -144,7 +209,10 @@ combine2 f x@(Located l1 _) y@(Located l2 _) =
   Located (spanning l1 l2) (f x y)
 
 
-combine3 :: (Located a -> Located b -> Located c -> d) -> Located a -> Located b -> Located c -> Located d
+combine3 ::
+  (Located a -> b -> Located c -> d) ->
+  Located a -> b -> Located c ->
+  Located d
 combine3 f x@(Located l1 _) y z@(Located l2 _)=
   Located (spanning l1 l2) (f x y z)
 
@@ -170,6 +238,7 @@ atomic :: Parser Expr
 atomic
    =  ESyn <$> (fmap IntLit <$> int)
   <|> ESyn <$> (fmap BoolLit <$> bool)
+  <|> ESyn <$> (fmap (const UnitCon) <$>  (kw "unit"))
   <|> delim '(' *> expr <* delim ')'
   <|> EChk <$> (combine3 (const Lam) <$> (kw "fun" <|> kw "λ") <*> name <*> (delim '.' *> check))
   <|> EChk <$> (combine2 (const (const Nil)) <$> delim '[' <*> delim ']')
@@ -222,4 +291,4 @@ mkBin bin e1 e2 =
 
 
 prog :: Parser Prog
-prog = Prog <$> sepBy decl (delim ';') <*> synth
+prog = Prog <$> many (decl <* delim ';') <*> synth

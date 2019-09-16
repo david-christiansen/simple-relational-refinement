@@ -88,9 +88,11 @@ data Check
   | If (Located Check) (Located Check) (Located Check)
   deriving Show
 
+data Star = Star
+  deriving Show
+
 data Rel
-  = RApp Name Check
-  | Star Rel
+  = RApp (Located Name) (Maybe (Located Star)) (Located Check)
   | Prod Rel Rel
   | Union Rel Rel
   | LitRel [[Located Synth]]
@@ -105,8 +107,14 @@ data Pred
   | Yep | Nope
   deriving Show
 
+data RelDef
+  = ListRel (Located Rel) (Located Name, Located Name, Located Rel)
+  | BoolRel (Located Rel) (Located Rel)
+  | OtherRel (Located Name) (Located Rel)
+  deriving Show
+
 data Decl
-  = RelDec (Located Name) (Located BaseType) (Located RelSort)
+  = RelDec (Located Name) (Located BaseType) (Located RelSort) (Located RelDef)
   | Def (Located Name) (Located Synth)
   deriving Show
 
