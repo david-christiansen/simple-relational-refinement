@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 module TC where
@@ -7,6 +8,7 @@ import Control.Exception hiding (TypeError(..))
 import Control.Lens hiding (Context, List)
 import Control.Monad.IO.Class
 import Control.Monad.Reader
+import Control.Monad.State
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
@@ -17,9 +19,11 @@ instance Exception a => Exception (Located a) where
 
 instance Exception TypeError where
 
+data RelDefInfo = Defined () | Recursively Name
+
 data Context = Context
   { _varTypes :: Map Name Ty
-  , _relationDefs :: Map Name ()
+  , _relationDefs :: Map Name RelDefInfo
   , _currentLocation :: Span
   }
 
@@ -28,7 +32,7 @@ emptyContext span = Context mempty mempty span
 varTypes :: Simple Lens Context (Map Name Ty)
 varTypes = lens _varTypes (\ctx tys -> ctx { _varTypes = tys })
 
-relationDefs :: Simple Lens Context (Map Name ())
+relationDefs :: Simple Lens Context (Map Name RelDefInfo)
 relationDefs = lens _relationDefs (\ctx rs -> ctx { _relationDefs = rs })
 
 currentLocation :: Simple Lens Context Span
@@ -55,6 +59,10 @@ context = TC ask
 withExtendedContext :: Name -> Ty -> TC a -> TC a
 withExtendedContext x t act =
   TC (local (over varTypes (Map.insert x t)) (runTC act))
+
+withRelationDef :: Name -> RelDefInfo -> TC a -> TC a
+withRelationDef r def act =
+  TC (local (over relationDefs (Map.insert r def)) (runTC act))
 
 withLocation :: Span -> TC a -> TC a
 withLocation l = TC . local (set currentLocation l) . runTC
@@ -222,5 +230,82 @@ withDeclContext (d:ds) act =
       do ty <- synth s
          withExtendedContext (view value x) ty $
            withDeclContext ds act
-    (Located l (RelDec _ _ _ _)) ->
-      failure $ GenericErr "Relation declarations not yet supported"
+    (Located l (RelDec r t θ def)) ->
+      do -- check for unique name
+         relationNameUnique r
+         -- t and θ fine by construction
+         -- then check the def, including termination
+         def' <- checkRelationDef r t θ def
+         -- Extend the context with the new relation and recur
+         withRelationDef (view value r) (Defined () {- TODO -}) $
+           withDeclContext ds act
+
+checkRelationDef ::
+  Located Name ->
+  Located BaseType -> Located RelSort -> Located RelDef ->
+  TC () -- TODO value
+checkRelationDef r t θ d =
+  case view value d of
+    (ListRel base (x, xs, step)) ->
+      case view value t of
+        List e ->
+          do checkSort θ base
+             withExtendedContext (view value x) (view value $ liftBase e) $
+               withExtendedContext (view value xs) (view value $ liftBase t) $
+                 -- FIXME indicate that r(xs) is recursively available
+                 checkSort θ step
+    (BoolRel true false) -> -- FIXME ensure t is Bool
+      checkSort θ true *> checkSort θ false
+    (OtherRel x rhs) ->
+      withExtendedContext (view value x) (view value $ liftBase t) $
+      checkSort θ rhs
+
+checkSort ::
+  Located RelSort -> Located Rel ->
+  TC () -- TODO value
+checkSort θ rel = located rel (checkSort' θ)
+
+newtype SortVar = SortVar Int deriving (Eq, Ord, Show)
+
+data Constraint
+  = Solved RelSort
+  | Concat SortVar SortVar
+  | Meta SortVar
+
+data SortCheck = SortCheck
+  { scNextVar :: Int
+  , scInfo :: Map SortVar Constraint
+  }
+
+freshSortVar :: Monad m => StateT SortCheck m SortVar
+freshSortVar =
+  do st <- get
+     let v = SortVar (scNextVar st)
+     put (st { scNextVar = scNextVar st + 1 })
+     return v
+
+addSortConstraint ::
+  Monad m =>
+  SortVar -> Constraint -> StateT SortCheck m ()
+addSortConstraint v c =
+  modify (\st -> st { scInfo = Map.insert v c (scInfo st) })
+
+
+checkSort' ::
+  Located RelSort -> Rel -> TC ()
+checkSort' θ (RApp _ _ _) = return ()
+checkSort' θ (Prod r1 r2) =
+  return ()
+checkSort' θ (Union r1 r2) =
+  checkSort' θ r1 *> checkSort' θ r2
+checkSort' θ (LitRel tuples) =
+  return ()
+
+relationNameUnique :: Located Name -> TC ()
+relationNameUnique x = located x relationNameUnique'
+
+relationNameUnique' x =
+  (view (relationDefs . at x) <$> context) >>=
+  \case
+    Nothing -> return ()
+    Just _ -> failure $ RelationDefined x

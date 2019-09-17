@@ -96,7 +96,8 @@ data Rel
   | Prod Rel Rel
   | Union Rel Rel
   | LitRel [[Located Synth]]
-  deriving Show
+  deriving (Show)
+
 
 data Pred
   = Eq Rel Rel
@@ -137,5 +138,6 @@ data TypeError
   | NotAListType Ty
   | NotSubtype Ty Ty
   | BaseMismatch BaseType BaseType
+  | RelationDefined Name
   | Unsat -- TODO insert reason why
   deriving Show

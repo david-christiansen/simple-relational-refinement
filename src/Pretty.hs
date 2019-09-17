@@ -164,4 +164,6 @@ instance Pretty TypeError where
                           ]
   pretty (BaseMismatch t1 t2) =
     pretty t1 <+> "≠" <+> pretty t2
+  pretty (RelationDefined x) =
+    "Relation" <+> pretty x <+> "already defined."
   pretty Unsat = "Unsat"

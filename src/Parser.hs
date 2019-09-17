@@ -103,17 +103,17 @@ relDef _ =
 braced :: Parser a -> Parser (Located a)
 braced p =
   combine3 (\_ x _ -> view value x) <$>
-  delim '{' <*>
-  located p <*>
-  delim '}'
+    delim '{' <*>
+    located p <*>
+    delim '}'
 
 atomicRel :: LParser Rel
 atomicRel
-   =  fmap LitRel <$> literalRel
-  <|> combine3 (\x y z -> RApp x y z) <$>
-      name <*>
-      optional (fmap (set value Star) (delim '*')) <*>
-      (delim '(' *> check <* delim ')')
+  =  fmap LitRel <$> literalRel
+  <|> combine3 RApp <$>
+        name <*>
+        optional (fmap (set value Star) (delim '*')) <*>
+        (delim '(' *> check <* delim ')')
 
   where
     literalRel :: LParser [[Located Synth]]
